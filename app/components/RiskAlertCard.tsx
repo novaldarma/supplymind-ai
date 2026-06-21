@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, ShieldAlert, CheckCircle, Ban } from "lucide-react";
+import {
+  AlertTriangle,
+  ShieldAlert,
+  CheckCircle,
+  Ban,
+  Mail,
+} from "lucide-react";
 
 export type RiskData = {
   supplier: string;
@@ -13,10 +19,23 @@ export type RiskData = {
 
 export default function RiskAlertCard({ data }: { data: RiskData }) {
   const isHighRisk = data.riskLevel === "High";
-
-  // State untuk menghidupkan interaksi tombol
   const [isEscalated, setIsEscalated] = useState(false);
   const [isHeld, setIsHeld] = useState(false);
+
+  // SIHIR FITUR 4: Buka Aplikasi Email Otomatis dengan Draf Teks dari AI
+  const handleSendEmail = () => {
+    const emailTo = `manager@${data.supplier.replace(/\s+/g, "").toLowerCase()}.com`;
+    const subject = encodeURIComponent(
+      `URGENT: Risk Alert - ${data.supplier} Performance`,
+    );
+    const body = encodeURIComponent(
+      `Dear ${data.supplier} Team,\n\nOur AI Procurement System has detected a critical drop in your health score due to: ${data.reason}\n\nThis directly impacts our active order: ${data.affectedPO}.\n\nPlease provide a mitigation plan immediately, or we will have to withhold pending payments.\n\nBest Regards,\nSupplyMind Automated System`,
+    );
+
+    // Buka aplikasi mail default pengguna
+    window.location.href = `mailto:${emailTo}?subject=${subject}&body=${body}`;
+    setIsEscalated(true);
+  };
 
   return (
     <div
@@ -67,20 +86,22 @@ export default function RiskAlertCard({ data }: { data: RiskData }) {
         </div>
       </div>
 
-      {/* Tombol Interaktif Baru */}
       <div className="mt-4 flex gap-2">
+        {/* Tombol Email Terintegrasi */}
         <button
-          onClick={() => setIsEscalated(true)}
+          onClick={handleSendEmail}
           disabled={isEscalated}
           className={`flex-1 py-2 px-4 rounded-lg font-semibold transition flex items-center justify-center gap-2
             ${isEscalated ? "bg-emerald-100 text-emerald-800 cursor-not-allowed" : "bg-slate-900 text-white hover:bg-slate-800"}`}
         >
           {isEscalated ? (
             <>
-              <CheckCircle className="w-4 h-4" /> Telah Dieskalasi
+              <CheckCircle className="w-4 h-4" /> Email Peringatan Terkirim
             </>
           ) : (
-            "Eskalasi ke Manajer"
+            <>
+              <Mail className="w-4 h-4" /> Draft & Kirim Email Teguran
+            </>
           )}
         </button>
 
