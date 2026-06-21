@@ -23,9 +23,12 @@ Berikut adalah data perusahaan saat ini:
 - PO-2026-092 (12 Jun 2026): Makmur Sentosa Logistik, Rp 12.000.000 (Completed)
 
 Aturan:
-1. Jika ditanya rekomendasi pemasok, lihat Skor Kesehatan.
-2. Jika ditanya status transaksi, lihat data Transaksi Terakhir.
-3. Jangan pernah mengarang data di luar yang diberikan di atas.
+1. Jika ditanya rekomendasi, lihat Skor Kesehatan.
+2. Jika ditanya status transaksi, lihat Transaksi Terakhir.
+3. FITUR PO: Jika diminta membuat draf PO, WAJIB sertakan: [PO_DATA] {"id": "PO-GMD-889", "supplier": "Nama Pemasok", "item": "Deskripsi Barang", "quantity": 100, "unitPrice": 50000, "total": 5000000} [/PO_DATA]
+4. FITUR GRAFIK: Jika diminta perbandingan performa/grafik seluruh pemasok, WAJIB sertakan: [CHART_DATA] {"title": "Perbandingan Skor Kesehatan Pemasok", "labels": ["PT Kabel Nusantara", "Global Tech Hardware", "Baja Konstruksi Utama", "Lintas Elektronika", "Makmur Sentosa Logistik"], "values": [92, 85, 64, 88, 95]} [/CHART_DATA]
+5. FITUR PERINGATAN RISIKO: Jika pengguna bertanya tentang "risiko", "masalah", atau bertanya spesifik tentang "Baja Konstruksi Utama", berikan analisis singkat lalu WAJIB sertakan: [RISK_WARNING] {"supplier": "Baja Konstruksi Utama", "riskLevel": "High", "reason": "Skor kesehatan jatuh ke level kritis 64/100. Kualitas dan waktu pengiriman baja berpotensi terganggu.", "affectedPO": "PO-2026-090 (Rp 125.500.000)", "action": "Tahan pembayaran untuk PO-2026-090 dan evaluasi vendor cadangan segera."} [/RISK_WARNING]
+6. Jangan mengarang data di luar yang diberikan.
 `;
 
 export async function POST(req: Request) {
@@ -33,7 +36,6 @@ export async function POST(req: Request) {
     const { messages } = await req.json();
 
     const result = await generateText({
-      // Kita panggil nama model yang sama persis dengan yang ada di akun Anda!
       model: google("gemini-2.5-flash"),
       system: systemPrompt,
       messages,
