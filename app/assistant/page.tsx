@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Send,
   Bot,
@@ -26,6 +26,9 @@ export default function AssistantPage() {
   const [scanningFile, setScanningFile] = useState(false);
   const [recognition, setRecognition] = useState<any>(null);
 
+  // Referensi untuk input file tersembunyi
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Inisialisasi speech recognition di client hanya sekali
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -35,7 +38,7 @@ export default function AssistantPage() {
       if (SpeechRecognition) {
         const instance = new SpeechRecognition();
         instance.continuous = false;
-        instance.lang = "id-ID";
+        instance.lang = "en-US"; // Diubah ke bahasa Inggris agar AI lebih akurat sesuai prompt
         setRecognition(instance);
       }
     }
@@ -63,15 +66,22 @@ export default function AssistantPage() {
     }
   }, [recognition, isListening]);
 
-  // Mock file scan
-  const handleFileScanMock = () => {
+  // Fungsi untuk menangani file yang dipilih dari komputer
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Reset input agar bisa memilih file yang sama lagi jika perlu
+    e.target.value = "";
+
+    // Mulai simulasi scanning
     setScanningFile(true);
     setTimeout(() => {
       setScanningFile(false);
       setInput(
-        "Analyze this uploaded invoice quotation from PT Kabel Nusantara and prepare a draft PO.",
+        "Analyze this uploaded invoice quotation from PT Kabel Nusantara and prepare a draft PO. ALL prices and costs MUST be in USD format (e.g., $5,000.00). Do not use Rp or IDR.",
       );
-    }, 2000);
+    }, 2500); // Animasi scanning selama 2.5 detik agar terlihat meyakinkan
   };
 
   // Submit form
@@ -91,17 +101,31 @@ export default function AssistantPage() {
         body: JSON.stringify({ messages: [...messages, userMessage] }),
       });
       const data = await res.json();
+
+      // Mencegah error object crash
+      let finalContent = data.text;
+      if (data.error) {
+        finalContent =
+          typeof data.error === "object"
+            ? JSON.stringify(data.error)
+            : data.error;
+        finalContent = `❌ Gagal memproses: ${finalContent}`;
+      }
+
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: data.error ? `❌ ${data.error}` : data.text,
+          content: finalContent,
         },
       ]);
-    } catch (err) {
+    } catch (err: any) {
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "❌ Connection error." },
+        {
+          role: "assistant",
+          content: `❌ Connection error: ${err.message || "Unknown Error"}`,
+        },
       ]);
     } finally {
       setIsLoading(false);
@@ -139,7 +163,7 @@ export default function AssistantPage() {
       <div className="flex-1 overflow-y-auto rounded-xl border bg-white shadow-sm p-6 mb-4 space-y-6">
         {messages.length === 0 && (
           <div className="text-center text-slate-400 mt-16 space-y-2">
-            <Bot className="w-10 h-10 mx-auto text-blue-500 animate-bounce" />
+            <Bot className="w-10 h-10 mx-auto text-indigo-500 animate-bounce" />
             <p className="text-sm font-semibold text-slate-700">
               SupplyMind Autonomous System Active
             </p>
@@ -157,7 +181,6 @@ export default function AssistantPage() {
           const riskJSON = extractJSON(displayText, "RISK_WARNING");
           const negJSON = extractJSON(displayText, "NEGOTIATION_SIM");
 
-          // Hapus tag JSON dari displayText
           const cleanText = displayText
             .replace(/\[PO_DATA\][\s\S]*?\[\/PO_DATA\]/g, "")
             .replace(/\[CHART_DATA\][\s\S]*?\[\/CHART_DATA\]/g, "")
@@ -172,7 +195,9 @@ export default function AssistantPage() {
             >
               <div
                 className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${
-                  m.role === "user" ? "bg-slate-800" : "bg-blue-600"
+                  m.role === "user"
+                    ? "bg-slate-800"
+                    : "bg-gradient-to-r from-indigo-600 to-violet-600"
                 }`}
               >
                 {m.role === "user" ? (
@@ -184,13 +209,12 @@ export default function AssistantPage() {
               <div
                 className={`rounded-2xl px-5 py-3 text-sm max-w-[95%] md:max-w-[85%] shadow-sm ${
                   m.role === "user"
-                    ? "bg-blue-600 text-white rounded-tr-none"
-                    : "bg-slate-50 border text-slate-700 rounded-tl-none"
+                    ? "bg-indigo-600 text-white rounded-tr-none"
+                    : "bg-slate-50 border border-slate-200 text-slate-700 rounded-tl-none"
                 }`}
               >
                 <div className="whitespace-pre-wrap">{cleanText}</div>
 
-                {/* Render komponen dengan error boundary sederhana */}
                 {riskJSON && (
                   <div className="mt-4">
                     <RiskAlertCard data={riskJSON} />
@@ -218,10 +242,10 @@ export default function AssistantPage() {
 
         {scanningFile && (
           <div className="flex gap-4 animate-pulse">
-            <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center">
+            <div className="h-8 w-8 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 flex items-center justify-center">
               <Bot className="w-4 h-4 text-white" />
             </div>
-            <div className="bg-blue-50 border border-blue-200 text-blue-700 rounded-2xl rounded-tl-none px-5 py-3 text-sm flex items-center gap-2">
+            <div className="bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-2xl rounded-tl-none px-5 py-3 text-sm flex items-center gap-2">
               <FileCheck className="w-4 h-4 animate-spin" /> SupplyMind AI
               Vision scanning document attachment...
             </div>
@@ -230,27 +254,35 @@ export default function AssistantPage() {
 
         {isLoading && (
           <div className="flex gap-4">
-            <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center">
+            <div className="h-8 w-8 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 flex items-center justify-center">
               <Bot className="w-4 h-4 text-white" />
             </div>
             <div className="bg-slate-50 border rounded-2xl rounded-tl-none px-5 py-3 text-sm text-slate-700 flex items-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin text-blue-600" />{" "}
+              <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />{" "}
               SupplyMind agent processing...
             </div>
           </div>
         )}
       </div>
 
-      {/* Input Action Panel */}
       <form
         onSubmit={handleFormSubmit}
         className="relative flex items-center gap-2"
       >
+        {/* INPUT FILE TERSEMBUNYI */}
+        <input
+          type="file"
+          accept=".pdf,.png,.jpg,.jpeg"
+          className="hidden"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+        />
+
         <button
           type="button"
-          onClick={handleFileScanMock}
+          onClick={() => fileInputRef.current?.click()}
           className="p-3.5 bg-slate-100 text-slate-600 border border-slate-300 rounded-xl hover:bg-slate-200 transition shadow-sm"
-          title="AI Vision Scan Quotation"
+          title="Upload Quotation Document"
         >
           <Paperclip className="w-5 h-5" />
         </button>
@@ -260,13 +292,13 @@ export default function AssistantPage() {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            disabled={isLoading}
+            disabled={isLoading || scanningFile}
             placeholder={
               isListening
                 ? "Listening to your voice command..."
                 : "Type procurement command..."
             }
-            className={`w-full rounded-xl border-slate-300 border bg-white px-4 py-4 pr-12 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent ${
+            className={`w-full rounded-xl border-slate-300 border bg-white px-4 py-4 pr-12 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent ${
               isListening
                 ? "bg-rose-50 border-rose-400 focus:ring-rose-500"
                 : ""
@@ -278,7 +310,7 @@ export default function AssistantPage() {
             className={`absolute right-3 top-3.5 p-1 rounded-lg transition-colors
               ${
                 isListening
-                  ? "text-rose-600 animate-ping"
+                  ? "text-rose-600 animate-pulse"
                   : "text-slate-400 hover:text-slate-600"
               }`}
           >
@@ -292,8 +324,8 @@ export default function AssistantPage() {
 
         <button
           type="submit"
-          disabled={isLoading || !input.trim()}
-          className="bg-blue-600 p-4 text-white rounded-xl hover:bg-blue-700 transition shadow-sm disabled:opacity-50"
+          disabled={isLoading || !input.trim() || scanningFile}
+          className="bg-indigo-600 p-4 text-white rounded-xl hover:bg-indigo-700 transition shadow-sm disabled:opacity-50"
         >
           <Send className="w-5 h-5" />
         </button>

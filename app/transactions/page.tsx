@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   CheckCircle2,
   Clock,
@@ -17,131 +17,37 @@ import {
   MessageCircle,
 } from "lucide-react";
 
-const txData = [
-  {
-    id: "PO-2026-089",
-    date: "Jun 20, 2026",
-    supplier: "PT Kabel Nusantara",
-    amount: "$4,500.00",
-    status: "Completed",
-  },
-  {
-    id: "PO-2026-090",
-    date: "Jun 18, 2026",
-    supplier: "Baja Konstruksi Utama",
-    amount: "$12,500.00",
-    status: "Pending",
-  },
-  {
-    id: "PO-2026-091",
-    date: "Jun 15, 2026",
-    supplier: "Global Tech Hardware",
-    amount: "$8,500.00",
-    status: "Processing",
-  },
-  {
-    id: "PO-2026-092",
-    date: "Jun 12, 2026",
-    supplier: "Makmur Sentosa Logistik",
-    amount: "$1,200.00",
-    status: "Completed",
-  },
-  {
-    id: "PO-2026-093",
-    date: "Jun 10, 2026",
-    supplier: "Lintas Elektronika",
-    amount: "$3,400.00",
-    status: "Completed",
-  },
-  {
-    id: "PO-2026-094",
-    date: "Jun 08, 2026",
-    supplier: "Andalas Chemical Supply",
-    amount: "$6,750.00",
-    status: "Processing",
-  },
-  {
-    id: "PO-2026-095",
-    date: "Jun 05, 2026",
-    supplier: "Mitra Solusi Digital",
-    amount: "$15,200.00",
-    status: "Completed",
-  },
-  {
-    id: "PO-2026-096",
-    date: "Jun 03, 2026",
-    supplier: "Borneo Mineral Resources",
-    amount: "$22,000.00",
-    status: "Pending",
-  },
-  {
-    id: "PO-2026-097",
-    date: "May 29, 2026",
-    supplier: "Surya Tekstil Indonesia",
-    amount: "$5,300.00",
-    status: "Completed",
-  },
-  {
-    id: "PO-2026-098",
-    date: "May 27, 2026",
-    supplier: "Cipta Energi Terbarukan",
-    amount: "$31,800.00",
-    status: "Completed",
-  },
-  {
-    id: "PO-2026-099",
-    date: "May 24, 2026",
-    supplier: "Garuda Office Solutions",
-    amount: "$980.00",
-    status: "Pending",
-  },
-  {
-    id: "PO-2026-100",
-    date: "May 21, 2026",
-    supplier: "Prima Cyber Security",
-    amount: "$9,450.00",
-    status: "Processing",
-  },
-  {
-    id: "PO-2026-101",
-    date: "May 18, 2026",
-    supplier: "Nusantara Precision Parts",
-    amount: "$14,600.00",
-    status: "Completed",
-  },
-  {
-    id: "PO-2026-102",
-    date: "May 15, 2026",
-    supplier: "Selat Sunda Freight Co.",
-    amount: "$7,100.00",
-    status: "Pending",
-  },
-];
-
-type Transaction = (typeof txData)[number];
+type Transaction = {
+  id: string;
+  date: string;
+  supplier: string;
+  amount: string;
+  status: string;
+};
 
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
     Completed: "bg-emerald-50 text-emerald-700 border-emerald-100",
     Processing: "bg-blue-50 text-blue-700 border-blue-100",
     Pending: "bg-amber-50 text-amber-700 border-amber-100",
+    "In Transit": "bg-purple-50 text-purple-700 border-purple-100",
   };
   return (
     <span
-      className={`inline-flex items-center gap-1.5 py-1 px-2.5 rounded-full text-[11px] font-bold border ${styles[status]}`}
+      className={`inline-flex items-center gap-1.5 py-1 px-2.5 rounded-full text-[11px] font-bold border ${styles[status] || "bg-slate-50 text-slate-700 border-slate-100"}`}
     >
       {status === "Completed" && <CheckCircle2 className="w-3 h-3" />}
       {status === "Processing" && <Loader2 className="w-3 h-3 animate-spin" />}
       {status === "Pending" && <Clock className="w-3 h-3" />}
+      {status === "In Transit" && <Truck className="w-3 h-3" />}
       {status}
     </span>
   );
 }
 
-// Maps an order status to how many of the 4 timeline steps are complete
 function completedSteps(status: string) {
   if (status === "Completed") return 4;
-  if (status === "Processing") return 3;
+  if (status === "Processing" || status === "In Transit") return 3;
   return 1;
 }
 
@@ -157,14 +63,33 @@ function formatCurrency(value: number) {
 }
 
 export default function TransactionsPage() {
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState("All");
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
 
-  // Fitur Filter Tab
+  // Mengambil data asli dari AWS DynamoDB lewat API internal kita
+  useEffect(() => {
+    async function fetchTransactions() {
+      try {
+        const res = await fetch("/api/transactions");
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setTransactions(data);
+        }
+      } catch (error) {
+        console.error("Gagal memuat data dari AWS:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchTransactions();
+  }, []);
+
   const filteredTx =
     activeTab === "All"
-      ? txData
-      : txData.filter((tx) => tx.status === activeTab);
+      ? transactions
+      : transactions.filter((tx) => tx.status === activeTab);
 
   const timelineSteps = [
     { label: "Order Created", icon: CircleDot },
@@ -184,7 +109,7 @@ export default function TransactionsPage() {
           Transaction History
         </h1>
         <p className="text-sm text-slate-500 mt-1">
-          List of Purchase Orders (PO) and their current delivery statuses.
+          List of Purchase Orders (PO) pulled live from **AWS DynamoDB**.
         </p>
       </div>
 
@@ -223,40 +148,61 @@ export default function TransactionsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredTx.map((tx) => (
-                <tr
-                  key={tx.id}
-                  className="hover:bg-slate-50/70 transition-colors"
-                >
-                  <td className="px-6 py-4 font-mono text-[13px] font-bold text-slate-900">
-                    {tx.id}
-                  </td>
-                  <td className="px-6 py-4 text-slate-500">{tx.date}</td>
-                  <td className="px-6 py-4 font-medium text-slate-700">
-                    {tx.supplier}
-                  </td>
-                  <td className="px-6 py-4 font-bold text-slate-900 tabular-nums">
-                    {tx.amount}
-                  </td>
-                  <td className="px-6 py-4">
-                    <StatusBadge status={tx.status} />
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button
-                      onClick={() => setSelectedTx(tx)}
-                      className="inline-flex items-center justify-center text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
-                    >
-                      View <ArrowRight className="ml-1 w-4 h-4" />
-                    </button>
+              {loading ? (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-6 py-10 text-center text-slate-400"
+                  >
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-indigo-600" />
+                    Menghubungkan ke AWS DynamoDB...
                   </td>
                 </tr>
-              ))}
+              ) : filteredTx.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-6 py-10 text-center text-slate-400"
+                  >
+                    Tidak ada transaksi dalam kategori ini.
+                  </td>
+                </tr>
+              ) : (
+                filteredTx.map((tx) => (
+                  <tr
+                    key={tx.id}
+                    className="hover:bg-slate-50/70 transition-colors"
+                  >
+                    <td className="px-6 py-4 font-mono text-[13px] font-bold text-slate-900">
+                      {tx.id}
+                    </td>
+                    <td className="px-6 py-4 text-slate-500">{tx.date}</td>
+                    <td className="px-6 py-4 font-medium text-slate-700">
+                      {tx.supplier}
+                    </td>
+                    <td className="px-6 py-4 font-bold text-slate-900 tabular-nums">
+                      {tx.amount}
+                    </td>
+                    <td className="px-6 py-4">
+                      <StatusBadge status={tx.status} />
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button
+                        onClick={() => setSelectedTx(tx)}
+                        className="inline-flex items-center justify-center text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+                      >
+                        View <ArrowRight className="ml-1 w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Slide-over backdrop */}
+      {/* Slide-over backdrop & panel */}
       <div
         onClick={() => setSelectedTx(null)}
         className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 transition-opacity duration-300 ${
@@ -266,7 +212,6 @@ export default function TransactionsPage() {
         }`}
       />
 
-      {/* Slide-over detail panel */}
       <div
         className={`fixed top-0 right-0 h-full w-full sm:w-[440px] bg-white z-50 shadow-2xl border-l border-slate-200 flex flex-col transform transition-transform duration-300 ease-out ${
           selectedTx ? "translate-x-0" : "translate-x-full"
@@ -297,7 +242,6 @@ export default function TransactionsPage() {
 
             {/* Panel Body */}
             <div className="flex-1 overflow-y-auto p-6 space-y-7">
-              {/* Quick info grid */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3.5">
                   <div className="flex items-center gap-1.5 text-slate-400 mb-1.5">
@@ -364,9 +308,7 @@ export default function TransactionsPage() {
                           </div>
                           {!isLast && (
                             <div
-                              className={`w-0.5 flex-1 min-h-[24px] ${
-                                done ? "bg-emerald-300" : "bg-slate-100"
-                              }`}
+                              className={`w-0.5 flex-1 min-h-[24px] ${done ? "bg-emerald-300" : "bg-slate-100"}`}
                             />
                           )}
                         </div>

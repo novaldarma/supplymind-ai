@@ -53,7 +53,7 @@ export default function POCard({ data }: { data: POData }) {
         <div>
           <p className="font-semibold text-slate-700">Total Estimated Cost</p>
           <p className="text-xl font-bold text-slate-950">
-            Rp {data.total.toLocaleString("id-ID")}
+            ${data.total.toLocaleString("en-US")}
           </p>
         </div>
       </div>
