@@ -155,7 +155,7 @@ export default function TransactionsPage() {
                     className="px-6 py-10 text-center text-slate-400"
                   >
                     <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-indigo-600" />
-                    Menghubungkan ke AWS DynamoDB...
+                    Connecting to AWS DynamoDB...
                   </td>
                 </tr>
               ) : filteredTx.length === 0 ? (
