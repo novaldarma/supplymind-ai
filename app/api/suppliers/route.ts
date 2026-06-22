@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient } from "../../../lib/dynamodb";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const response = await docClient.send(
