@@ -19,7 +19,33 @@ import { useRouter } from "next/navigation";
 
 type MetricColor = "blue" | "emerald" | "amber" | "violet";
 
-// Mapping warna untuk metrik
+const handleSendEmail = async (supplierName: string, riskScore: number) => {
+  alert(`Initiating automated warning protocol to ${supplierName}...`);
+
+  try {
+    const res = await fetch("/api/send-email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        supplierName: supplierName,
+        riskScore: riskScore,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (res.ok) {
+      alert("✅ SUCCESS: " + data.message);
+    } else {
+      alert("❌ FAILED: " + data.error);
+    }
+  } catch (error) {
+    alert("❌ CRITICAL ERROR: Network request failed.");
+  }
+};
+
 const colorStyles: Record<MetricColor, { bg: string; text: string }> = {
   blue: { bg: "bg-blue-50", text: "text-blue-600" },
   emerald: { bg: "bg-emerald-50", text: "text-emerald-600" },
@@ -30,12 +56,10 @@ const colorStyles: Record<MetricColor, { bg: string; text: string }> = {
 export default function Dashboard() {
   const router = useRouter();
 
-  // State untuk menyimpan data dari AWS DynamoDB
   const [transactions, setTransactions] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fungsi untuk mengambil data dari API saat halaman dimuat
   useEffect(() => {
     async function fetchDashboardData() {
       try {
@@ -50,7 +74,7 @@ export default function Dashboard() {
         if (Array.isArray(txData)) setTransactions(txData);
         if (Array.isArray(supData)) setSuppliers(supData);
       } catch (error) {
-        console.error("Gagal memuat data Dashboard:", error);
+        console.error("Failed to load Dashboard data:", error);
       } finally {
         setLoading(false);
       }
@@ -58,32 +82,66 @@ export default function Dashboard() {
     fetchDashboardData();
   }, []);
 
-  // -------------------------------------------------------------
-  // LOGIKA PERHITUNGAN DINAMIS
-  // -------------------------------------------------------------
-
-  const totalSuppliers = suppliers.length;
-
-  // Menghitung rata-rata Health Score
-  const avgHealthScore =
-    totalSuppliers > 0
-      ? Math.round(
-          suppliers.reduce((acc, curr) => acc + (curr.riskScore || 0), 0) /
-            totalSuppliers,
-        )
-      : 0;
-
-  // Menghitung order yang belum selesai
-  const activeOrders = transactions.filter(
-    (tx) => tx.status !== "Completed",
-  ).length;
-
-  // Membersihkan format string nominal (misal: "$12,500.00") menjadi angka murni untuk dihitung
+  // Helper untuk membersihkan nominal uang string menjadi angka murni
   const parseAmount = (val: string | number) => {
     if (typeof val === "number") return val;
     if (!val) return 0;
     return parseFloat(val.toString().replace(/[^0-9.-]/g, "")) || 0;
   };
+
+  // -------------------------------------------------------------
+  // 🌟 SIHIR BARU: LOGIKA HEALTH SCORE DINAMIS (REAL-TIME TELEMETRY)
+  // -------------------------------------------------------------
+  const computedSuppliers = suppliers.map((supplier) => {
+    // Ambil semua transaksi milik supplier spesifik ini
+    const supplierTx = transactions.filter(
+      (tx) => tx.supplier === supplier.name,
+    );
+
+    // Jika tidak ada riwayat transaksi, default score sempurna (100)
+    if (supplierTx.length === 0) return { ...supplier, riskScore: 100 };
+
+    let currentScore = 100;
+
+    supplierTx.forEach((tx) => {
+      // 1. Penalti berdasarkan status operasional
+      if (tx.status === "Pending") currentScore -= 15; // Penalti tinggi untuk stagnansi order
+      if (tx.status === "Processing") currentScore -= 5; // Penalti menengah untuk antrean pabrik
+      if (tx.status === "In Transit") currentScore -= 2; // Penalti logistik ringan
+
+      // 2. Penalti eksposur finansial (Makin besar dana mandek, makin berisiko)
+      if (tx.status !== "Completed" && parseAmount(tx.amount) > 10000) {
+        currentScore -= 5;
+      }
+    });
+
+    // Mengunci nilai agar tetap berada di rentang rentang aman 0 - 100
+    const finalScore = Math.max(0, Math.min(100, currentScore));
+
+    return {
+      ...supplier,
+      riskScore: finalScore, // Menimpa skor statis dari DB dengan hasil kalkulasi real-time
+    };
+  });
+
+  // -------------------------------------------------------------
+  // PERHITUNGAN METRIK BERDASARKAN DATA HASIL KALKULASI DINAMIS
+  // -------------------------------------------------------------
+  const totalSuppliers = computedSuppliers.length;
+
+  const avgHealthScore =
+    totalSuppliers > 0
+      ? Math.round(
+          computedSuppliers.reduce(
+            (acc, curr) => acc + (curr.riskScore || 0),
+            0,
+          ) / totalSuppliers,
+        )
+      : 0;
+
+  const activeOrders = transactions.filter(
+    (tx) => tx.status !== "Completed",
+  ).length;
 
   const totalSpend = transactions.reduce(
     (acc, curr) => acc + parseAmount(curr.amount),
@@ -94,7 +152,6 @@ export default function Dashboard() {
       ? `$${(totalSpend / 1000).toFixed(1)}k`
       : `$${totalSpend.toFixed(2)}`;
 
-  // Menyiapkan Array Metrik Dinamis untuk dirender
   const dynamicMetrics = [
     {
       title: "Total Suppliers",
@@ -111,7 +168,7 @@ export default function Dashboard() {
       suffix: " / 100",
       icon: Activity,
       color: "emerald" as MetricColor,
-      sub: "Real-time average",
+      sub: "Dynamic Telemetry",
       subIcon: Activity,
       subColor: "text-emerald-600",
     },
@@ -135,15 +192,13 @@ export default function Dashboard() {
     },
   ];
 
-  // Mengambil data untuk tabel dan list (dibatasi jumlahnya)
   const recentTransactions = transactions.slice(0, 3);
 
-  // Mengurutkan supplier dari skor terendah ke tertinggi untuk Risk Watchlist (Ambil 2 terburuk)
-  const atRiskSuppliers = [...suppliers]
+  // Menyaring Risk Watchlist berdasarkan data dinamis yang baru saja dihitung
+  const atRiskSuppliers = [...computedSuppliers]
     .sort((a, b) => (a.riskScore || 0) - (b.riskScore || 0))
     .slice(0, 2);
 
-  // Helper untuk styling status transaksi
   const getTxStatusUI = (status: string) => {
     switch (status) {
       case "Completed":
@@ -208,7 +263,6 @@ export default function Dashboard() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {/* Metric Cards */}
         {dynamicMetrics.map((m) => {
           const styles = colorStyles[m.color];
           const Icon = m.icon;
@@ -311,16 +365,6 @@ export default function Dashboard() {
                     </tr>
                   );
                 })}
-                {recentTransactions.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={4}
-                      className="px-6 py-8 text-center text-slate-400"
-                    >
-                      No recent transactions found.
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
           </div>
@@ -375,22 +419,23 @@ export default function Dashboard() {
                       style={{ width: `${score}%` }}
                     ></div>
                   </div>
-                  <p className="text-xs font-medium text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                  <p className="text-xs font-medium text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-100 mb-3">
                     {isCritical
                       ? "Critical score detected. High risk of supply chain disruption."
                       : "Score dropped. Requires monitoring to prevent future issues."}
                   </p>
+
+                  <button
+                    onClick={() => handleSendEmail(supplier.name, score)}
+                    className="w-full bg-red-600 hover:bg-red-700 text-white text-xs font-semibold py-2 px-4 rounded shadow-sm transition-all flex items-center justify-center gap-1.5"
+                  >
+                    ⚠️ Trigger Warning Email
+                  </button>
                 </div>
               );
             })}
-            {atRiskSuppliers.length === 0 && (
-              <p className="text-sm text-center text-slate-400 pt-4">
-                All suppliers are currently healthy.
-              </p>
-            )}
           </div>
 
-          {/* AI ASSISTANT ACTION */}
           <div className="p-4 bg-gradient-to-r from-indigo-600 to-violet-600 text-center hover:from-indigo-700 hover:to-violet-700 transition-colors cursor-pointer mt-auto">
             <button
               onClick={() => router.push("/assistant")}

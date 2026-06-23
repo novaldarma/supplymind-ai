@@ -22,19 +22,34 @@ export default function RiskAlertCard({ data }: { data: RiskData }) {
   const [isEscalated, setIsEscalated] = useState(false);
   const [isHeld, setIsHeld] = useState(false);
 
-  // SIHIR FITUR 4: Buka Aplikasi Email Otomatis dengan Draf Teks dari AI
-  const handleSendEmail = () => {
-    const emailTo = `manager@${data.supplier.replace(/\s+/g, "").toLowerCase()}.com`;
-    const subject = encodeURIComponent(
-      `URGENT: Risk Alert - ${data.supplier} Performance`,
-    );
-    const body = encodeURIComponent(
-      `Dear ${data.supplier} Team,\n\nOur AI Procurement System has detected a critical drop in your health score due to: ${data.reason}\n\nThis directly impacts our active order: ${data.affectedPO}.\n\nPlease provide a mitigation plan immediately, or we will have to withhold pending payments.\n\nBest Regards,\nSupplyMind Automated System`,
-    );
+  // UPGRADE: Terintegrasi langsung dengan API AWS SES backend
+  const handleSendEmail = async () => {
+    setIsEscalated(true); // Ubah state tombol menjadi loading/sent
 
-    // Buka aplikasi mail default pengguna
-    window.location.href = `mailto:${emailTo}?subject=${subject}&body=${body}`;
-    setIsEscalated(true);
+    try {
+      const res = await fetch("/api/send-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          supplierName: data.supplier,
+          riskScore: data.reason, // Mengirim reason sebagai konteks peringatan
+        }),
+      });
+
+      const resultData = await res.json();
+
+      if (res.ok) {
+        alert("✅ SUCCESS: " + resultData.message);
+      } else {
+        alert("❌ FAILED: " + resultData.error);
+        setIsEscalated(false); // Kembalikan tombol jika gagal
+      }
+    } catch (error) {
+      alert("❌ CRITICAL ERROR: Network request failed.");
+      setIsEscalated(false); // Kembalikan tombol jika gagal
+    }
   };
 
   return (
@@ -66,28 +81,30 @@ export default function RiskAlertCard({ data }: { data: RiskData }) {
 
       <div className="space-y-3 mt-4 text-sm">
         <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-          <p className="font-semibold text-slate-800 mb-1">Penyebab Risiko:</p>
+          <p className="font-semibold text-slate-800 mb-1">Risk Factor:</p>
           <p className="text-slate-600">{data.reason}</p>
         </div>
 
         <div className="flex gap-4">
           <div className="flex-1 bg-slate-50 p-3 rounded-lg border border-slate-100">
             <p className="font-semibold text-slate-800 mb-1">
-              Transaksi Terdampak:
+              Affected Transaction:
             </p>
             <p className="font-mono text-slate-600 font-bold">
               {data.affectedPO}
             </p>
           </div>
           <div className="flex-1 bg-blue-50 p-3 rounded-lg border border-blue-100">
-            <p className="font-semibold text-blue-800 mb-1">Rekomendasi AI:</p>
+            <p className="font-semibold text-blue-800 mb-1">
+              AI Recommendation:
+            </p>
             <p className="text-blue-700">{data.action}</p>
           </div>
         </div>
       </div>
 
       <div className="mt-4 flex gap-2">
-        {/* Tombol Email Terintegrasi */}
+        {/* Integrated Email Button */}
         <button
           onClick={handleSendEmail}
           disabled={isEscalated}
@@ -96,11 +113,11 @@ export default function RiskAlertCard({ data }: { data: RiskData }) {
         >
           {isEscalated ? (
             <>
-              <CheckCircle className="w-4 h-4" /> Email Peringatan Terkirim
+              <CheckCircle className="w-4 h-4" /> Warning Email Sent
             </>
           ) : (
             <>
-              <Mail className="w-4 h-4" /> Draft & Kirim Email Teguran
+              <Mail className="w-4 h-4" /> Draft & Send Warning Email
             </>
           )}
         </button>
@@ -113,10 +130,10 @@ export default function RiskAlertCard({ data }: { data: RiskData }) {
         >
           {isHeld ? (
             <>
-              <Ban className="w-4 h-4" /> Pembayaran Ditahan
+              <Ban className="w-4 h-4" /> Payment Held
             </>
           ) : (
-            "Tahan Pembayaran"
+            "Hold Payment"
           )}
         </button>
       </div>
